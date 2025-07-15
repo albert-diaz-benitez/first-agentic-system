@@ -13,17 +13,17 @@ from app.config.env_config import DEFAULT_MODEL_NAME, TEMPERATURE
 
 # Import our custom models and tools
 from app.models.agent_models import TrainingPlannerState
-from app.tools.calendar_tool import GoogleCalendarTool
 from app.tools.excel_tool import ExcelExportTool
-from app.tools.strava_tool import StravaAnalysisTool
+from app.tools.strava_tool import StravaStatsTool
+from app.tools.workout_search_tool import WorkoutSearchTool
 
 # Define the system prompt
-SYSTEM_PROMPT = """You are a professional training planner assistant that creates personalized weekly workout programs based on an athlete's recent Strava activities.
+SYSTEM_PROMPT = """You are a professional training planner assistant that creates personalized weekly workout programs based on an athlete's Strava statistics.
 
 Follow these steps:
-1. Analyze the athlete's recent Strava data to understand their fitness level, activity patterns, and training load.
-2. Create a balanced weekly training plan that includes appropriate workouts, rest days, and progressive overload.
-3. Create calendar events for each workout session in the athlete's Google Calendar.
+1. Analyze the athlete's Strava statistics to understand their fitness level, activity patterns, and training load.
+2. Search for workout ideas that match the athlete's primary sports and fitness level.
+3. Create a balanced weekly training plan that includes appropriate workouts, rest days, and progressive overload.
 4. Generate an Excel spreadsheet with the complete weekly training program.
 
 The weekly plan should:
@@ -32,6 +32,7 @@ The weekly plan should:
 - Allow adequate recovery between intense sessions
 - Include specific workout details (duration, distance, intensity, description)
 - Align with any specific goals the athlete mentions
+- Incorporate workout ideas found through internet searches when appropriate
 
 Be thoughtful, professional, and provide clear explanations for your training recommendations.
 """
@@ -44,12 +45,12 @@ def create_agent():
     llm = ChatOpenAI(model=DEFAULT_MODEL_NAME, temperature=TEMPERATURE)
 
     # Initialize the tools
-    strava_tool = StravaAnalysisTool()
-    calendar_tool = GoogleCalendarTool()
+    strava_tool = StravaStatsTool()
+    workout_search_tool = WorkoutSearchTool()
     excel_tool = ExcelExportTool()
 
     # Create a tool belt with all tools
-    tools = [strava_tool, calendar_tool, excel_tool]
+    tools = [strava_tool, workout_search_tool, excel_tool]
 
     # Bind the tools to the LLM
     llm_with_tools = llm.bind_tools(tools)
@@ -76,7 +77,7 @@ def create_agent():
     # Define how to process Strava analysis results
     def process_strava_data(state: TrainingPlannerState) -> Dict[str, Any]:
         """Extract and process Strava analysis data."""
-        # Look for the most recent StravaAnalysisTool result
+        # Look for the most recent StravaStatsTool result
         messages = state["messages"]
 
         for message in reversed(messages):
@@ -93,21 +94,34 @@ def create_agent():
         # If no Strava data found
         return {"strava_analysis": None}
 
-    # Define how to track calendar events
-    def track_calendar_events(state: TrainingPlannerState) -> Dict[str, Any]:
-        """Track created Google Calendar events."""
+    # Define how to track workout searches
+    def track_workout_searches(state: TrainingPlannerState) -> Dict[str, Any]:
+        """Track workout ideas found through searches."""
         messages = state["messages"]
-        calendar_events = state.get("calendar_events", [])
+        workout_ideas = state.get("workout_ideas", [])
 
         for message in reversed(messages):
-            if hasattr(message, "tool_call_id") and message.name == calendar_tool.name:
-                if "Event ID:" in message.content:
-                    # Extract the event ID from the message
-                    event_id = message.content.split("Event ID: ")[1].strip()
-                    if event_id not in calendar_events:
-                        calendar_events.append(event_id)
+            if (
+                hasattr(message, "tool_call_id")
+                and message.name == workout_search_tool.name
+            ):
+                try:
+                    # Parse the search results
+                    import json
 
-        return {"calendar_events": calendar_events}
+                    search_results = json.loads(message.content)
+
+                    # Extract workout ideas
+                    if "workout_ideas" in search_results:
+                        for idea in search_results["workout_ideas"]:
+                            if idea not in workout_ideas:
+                                workout_ideas.append(idea)
+
+                except Exception:
+                    # If parsing fails, just continue
+                    pass
+
+        return {"workout_ideas": workout_ideas}
 
     # Define how to track Excel exports
     def track_excel_export(state: TrainingPlannerState) -> Dict[str, Any]:
@@ -145,13 +159,13 @@ def create_agent():
     workflow.add_node("agent", agent_node)
     workflow.add_node("tool", tool_node)
     workflow.add_node("process_strava", process_strava_data)
-    workflow.add_node("track_calendar", track_calendar_events)
+    workflow.add_node("track_searches", track_workout_searches)
     workflow.add_node("track_excel", track_excel_export)
 
     # Define the edges
     workflow.add_edge("agent", "process_strava")
-    workflow.add_edge("process_strava", "track_calendar")
-    workflow.add_edge("track_calendar", "track_excel")
+    workflow.add_edge("process_strava", "track_searches")
+    workflow.add_edge("track_searches", "track_excel")
 
     # Add conditional edge
     workflow.add_conditional_edges(
@@ -172,7 +186,7 @@ def format_training_plan_input(
     athlete_name: str, days: int = 7, goals: str = None
 ) -> Dict[str, Any]:
     """Format the input for the training planner."""
-    prompt = f"Create a personalized weekly training plan for athlete {athlete_name} based on their Strava activities from the past {days} days."
+    prompt = f"Create a personalized weekly training plan for athlete {athlete_name} based on their Strava statistics."
 
     if goals:
         prompt += f" The athlete's goals are: {goals}"

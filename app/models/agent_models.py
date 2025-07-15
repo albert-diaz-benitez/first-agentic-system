@@ -14,5 +14,5 @@ class TrainingPlannerState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]  # Conversation history
     strava_analysis: Optional[Dict[str, Any]]  # Analyzed Strava data
     plan: Optional[Dict[str, Any]]  # Generated training plan
-    calendar_events: List[str]  # IDs of created calendar events
+    workout_ideas: List[Dict[str, Any]]  # Workout ideas found through searches
     excel_export_path: Optional[str]  # Path to the exported Excel file
