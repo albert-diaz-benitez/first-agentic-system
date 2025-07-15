@@ -1,0 +1,41 @@
+[project]
+name = "strava-training-planner"
+version = "0.1.0"
+description = "An agentic system to plan a weekly program based on athlete stats from Strava API"
+authors = [
+    {name = "Albert", email = "albert.diaz@inari.io"}
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+dependencies = [
+    "langchain-community>=0.3.27",
+    "langchain-openai>=0.3.27",
+    "langgraph>=0.5.1",
+    "langsmith>=0.4.4",
+    "tavily-python>=0.7.9",
+    "openpyxl>=3.1.2",
+    "pandas>=2.0.0",
+    "stravalib>=1.5.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "python-dotenv>=1.0.0"
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]
+
+[tool.skjold]
+report_only = true
+report_format = 'cli'
+sources = ["pyup", "gemnasium"]
+cache_dir = ".skjold_cache"
+cache_expires = 43200
+ignore_file = ".skjoldignore"
+
+[tool.pytest.ini_options]
+python_files = "test_* *_tests.py *_utests.py"
+python_classes = "Test* *Tests"
