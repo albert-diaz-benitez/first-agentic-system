@@ -24,7 +24,7 @@ Follow these steps:
 1. Analyze the athlete's Strava statistics to understand their fitness level, activity patterns, and training load.
 2. Search for workout ideas that match the athlete's primary sports and fitness level.
 3. Create a balanced weekly training plan that includes appropriate workouts, rest days, and progressive overload.
-4. Generate an Excel spreadsheet with the complete weekly training program.
+4. ALWAYS generate an Excel spreadsheet with the complete weekly training program.
 
 The weekly plan should:
 - Be tailored to the athlete's demonstrated fitness level and activity preferences
@@ -33,6 +33,13 @@ The weekly plan should:
 - Include specific workout details (duration, distance, intensity, description)
 - Align with any specific goals the athlete mentions
 - Incorporate workout ideas found through internet searches when appropriate
+
+IMPORTANT: You MUST create an Excel file with the training plan using the export_training_plan_to_excel tool. 
+Your final step should always be to call the ExcelExportTool with:
+- athlete_name: The name of the athlete
+- week_start_date: Today's date in YYYY-MM-DD format
+- workouts: A list of workout objects with day, title, duration, description, type, and intensity fields for each day of the week
+- notes: Any additional notes or recommendations
 
 Be thoughtful, professional, and provide clear explanations for your training recommendations.
 """
@@ -127,17 +134,29 @@ def create_agent():
     def track_excel_export(state: TrainingPlannerState) -> Dict[str, Any]:
         """Track the exported Excel file path."""
         messages = state["messages"]
+        excel_path = None
 
+        # First check if we already have a path in the state
+        if state.get("excel_export_path"):
+            excel_path = state.get("excel_export_path")
+
+        # Look through messages for Excel export tool responses
         for message in reversed(messages):
+            # Check if this is a tool response from the Excel tool
             if hasattr(message, "tool_call_id") and message.name == excel_tool.name:
-                if "exported successfully to" in message.content:
-                    # Extract the file path
-                    file_path = message.content.split("exported successfully to ")[
-                        1
-                    ].strip()
-                    return {"excel_export_path": file_path}
+                content = message.content
+                if "exported successfully to" in content:
+                    # Extract the file path using string split
+                    excel_path = content.split("exported successfully to ")[1].strip()
+                    break  # Found a valid path, exit the loop
 
-        return {"excel_export_path": None}
+        # If we have a plan but no Excel path, the plan may not be complete
+        if state.get("plan") and not excel_path:
+            # This indicates the agent hasn't generated the Excel file yet
+            # We'll capture this state but continue the agent's execution
+            return {"excel_export_path": None}
+
+        return {"excel_export_path": excel_path}
 
     # Conditional routing based on tool calls
     def should_continue(state: TrainingPlannerState) -> str:
