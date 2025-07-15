@@ -2,7 +2,7 @@
 Strava Training Planner Agent using LangGraph
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -183,7 +183,7 @@ def create_agent():
 
 
 def format_training_plan_input(
-    athlete_name: str, days: int = 7, goals: str = None
+    athlete_name: str, days: int = 7, goals: Optional[str] = None
 ) -> Dict[str, Any]:
     """Format the input for the training planner."""
     prompt = f"Create a personalized weekly training plan for athlete {athlete_name} based on their Strava statistics."
